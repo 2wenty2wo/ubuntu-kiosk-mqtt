@@ -22,13 +22,8 @@ Control an Ubuntu kiosk display backlight and updates over MQTT.
 2. **Install Python dependency**:
 
    ```bash
-   python3 -m pip install --user paho-mqtt
-   ```
-
-   If running the service as `root` (default unit file), install system-wide:
-
-   ```bash
-   sudo python3 -m pip install paho-mqtt
+   sudo apt update
+   sudo apt install python3-paho-mqtt
    ```
 
 3. **Configure the systemd service**:
