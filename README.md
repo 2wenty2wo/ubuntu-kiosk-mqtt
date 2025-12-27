@@ -69,7 +69,7 @@ Published:
 
 Subscribed:
 
-- `<TOPIC_PREFIX>/cmd/brightness` (0-100, 0-255, or JSON `{ "brightness": 200 }`)
+- `<TOPIC_PREFIX>/cmd/brightness` (0-100 percent as plain numeric payload, or JSON `{ "brightness": 200 }` for 0-255 values)
 - `<TOPIC_PREFIX>/cmd/display` (`ON`/`OFF`)
 - `<TOPIC_PREFIX>/cmd/update` (`pull`, `update`, `1`, `true`)
 - `<TOPIC_PREFIX>/cmd/version` (any payload publishes state)
