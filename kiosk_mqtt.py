@@ -27,7 +27,7 @@ ALLOWED_BRANCH = os.environ.get("ALLOWED_BRANCH", "main")
 STATE_TOPIC = f"{TOPIC_PREFIX}/state"
 ERROR_TOPIC = f"{TOPIC_PREFIX}/error"
 
-CMD_BRIGHTNESS = f"{TOPIC_PREFIX}/cmd/brightness"   # "0".."100"
+CMD_BRIGHTNESS = f"{TOPIC_PREFIX}/cmd/brightness"   # "0".."100" or JSON {"brightness": 80} / {"brightness": 200} / {"state": "ON"}
 CMD_DISPLAY = f"{TOPIC_PREFIX}/cmd/display"         # "ON" / "OFF"
 CMD_UPDATE = f"{TOPIC_PREFIX}/cmd/update"           # "pull"
 CMD_VERSION = f"{TOPIC_PREFIX}/cmd/version"         # anything -> publish state
@@ -153,9 +153,40 @@ def on_message(client, userdata, msg):
 
     try:
         if topic == CMD_BRIGHTNESS:
-            pct = int(float(payload))
-            save_last_nonzero(pct)
-            set_brightness_percent(pct)
+            pct = None
+            state = None
+            parsed = None
+            try:
+                parsed = json.loads(payload)
+            except json.JSONDecodeError:
+                parsed = None
+
+            if isinstance(parsed, dict):
+                if "state" in parsed:
+                    state = str(parsed["state"]).upper()
+                    if state not in ("ON", "OFF"):
+                        raise ValueError("brightness state must be ON or OFF")
+                if "brightness" in parsed:
+                    value = float(parsed["brightness"])
+                    if value > 100:
+                        pct = round(value * 100 / 255)
+                    else:
+                        pct = round(value)
+            elif parsed is not None:
+                pct = int(float(parsed))
+
+            if state == "OFF":
+                cur = get_brightness_percent()
+                save_last_nonzero(cur)
+                set_brightness_percent(0)
+            else:
+                if pct is None:
+                    if state == "ON":
+                        pct = load_last_nonzero()
+                    else:
+                        pct = int(float(payload))
+                save_last_nonzero(pct)
+                set_brightness_percent(pct)
             publish_state(client)
 
         elif topic == CMD_DISPLAY:
