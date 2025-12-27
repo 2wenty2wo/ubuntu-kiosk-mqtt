@@ -63,6 +63,32 @@ All configuration is via environment variables (set in the systemd unit):
 - `BACKLIGHT_NAME` (e.g. `intel_backlight`)
 - `REPO_DIR`, `SERVICE_NAME`, `ALLOWED_BRANCH`
 
+### Systemd drop-in for secrets (recommended)
+
+To keep MQTT passwords out of the repo and avoid re-entering them after `git pull`,
+use a systemd drop-in override on the kiosk host:
+
+```bash
+sudo systemctl edit kiosk-mqtt.service
+```
+
+Add the following content:
+
+```
+[Service]
+Environment=MQTT_PASS=your_password_here
+```
+
+Then reload and restart the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart kiosk-mqtt.service
+```
+
+This creates `/etc/systemd/system/kiosk-mqtt.service.d/override.conf`, which is
+local to the machine and won’t be overwritten by `git pull`.
+
 ## MQTT Topics
 
 Published:
