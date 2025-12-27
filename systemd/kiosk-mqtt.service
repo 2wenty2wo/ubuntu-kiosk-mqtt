@@ -9,6 +9,9 @@ WorkingDirectory=/opt/kiosk-mqtt
 ExecStart=/usr/bin/python3 /opt/kiosk-mqtt/kiosk_mqtt.py
 Restart=always
 RestartSec=2
+# Backlight sysfs writes require elevated permissions (run as root or via udev/group ownership).
+User=root
+Group=root
 
 Environment=MQTT_HOST=192.168.1.101
 Environment=MQTT_PORT=1883
