@@ -1,0 +1,29 @@
+[Unit]
+Description=Ubuntu Kiosk MQTT Control
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kiosk-mqtt
+ExecStart=/usr/bin/python3 /opt/kiosk-mqtt/kiosk_mqtt.py
+Restart=always
+RestartSec=2
+
+Environment=MQTT_HOST=192.168.1.101
+Environment=MQTT_PORT=1883
+Environment=MQTT_USER=kiosk
+
+Environment=DEVICE_ID=ubuntu_kiosk
+Environment=TOPIC_PREFIX=kiosk/ubuntu_kiosk
+Environment=BACKLIGHT_NAME=intel_backlight
+
+Environment=REPO_DIR=/opt/kiosk-mqtt
+Environment=SERVICE_NAME=kiosk-mqtt.service
+Environment=ALLOWED_BRANCH=main
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
