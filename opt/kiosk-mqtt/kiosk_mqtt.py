@@ -6,118 +6,196 @@ import subprocess
 from pathlib import Path
 import paho.mqtt.client as mqtt
 
+# -----------------------------
+# Config via environment
+# -----------------------------
 MQTT_HOST = os.environ.get("MQTT_HOST", "192.168.1.101")
 MQTT_PORT = int(os.environ.get("MQTT_PORT", "1883"))
 MQTT_USER = os.environ.get("MQTT_USER", "")
 MQTT_PASS = os.environ.get("MQTT_PASS", "")
 
-DEVICE_ID = os.environ.get("DEVICE_ID", "ubuntu_kiosk_1")
+DEVICE_ID = os.environ.get("DEVICE_ID", "ubuntu_kiosk")
 TOPIC_PREFIX = os.environ.get("TOPIC_PREFIX", f"kiosk/{DEVICE_ID}")
 
 BACKLIGHT_NAME = os.environ.get("BACKLIGHT_NAME", "intel_backlight")
+
 REPO_DIR = os.environ.get("REPO_DIR", "/opt/kiosk-mqtt")
 SERVICE_NAME = os.environ.get("SERVICE_NAME", "kiosk-mqtt.service")
 ALLOWED_BRANCH = os.environ.get("ALLOWED_BRANCH", "main")
 
+# Topics
 STATE_TOPIC = f"{TOPIC_PREFIX}/state"
 ERROR_TOPIC = f"{TOPIC_PREFIX}/error"
-CMD_BRIGHTNESS = f"{TOPIC_PREFIX}/cmd/brightness"
-CMD_DISPLAY = f"{TOPIC_PREFIX}/cmd/display"
-CMD_UPDATE = f"{TOPIC_PREFIX}/cmd/update"
 
+CMD_BRIGHTNESS = f"{TOPIC_PREFIX}/cmd/brightness"   # "0".."100"
+CMD_DISPLAY = f"{TOPIC_PREFIX}/cmd/display"         # "ON" / "OFF"
+CMD_UPDATE = f"{TOPIC_PREFIX}/cmd/update"           # "pull"
+CMD_VERSION = f"{TOPIC_PREFIX}/cmd/version"         # anything -> publish state
+
+# Last non-zero brightness for wake
 LAST_BRIGHTNESS_FILE = Path("/var/tmp/kiosk_last_brightness.txt")
 
-def bl():
+
+# -----------------------------
+# Backlight helpers
+# -----------------------------
+def bl_base() -> Path:
     return Path("/sys/class/backlight") / BACKLIGHT_NAME
 
-def read_int(p): return int(p.read_text().strip())
-def write_int(p, v): p.write_text(str(v))
+def read_int(p: Path) -> int:
+    return int(p.read_text().strip())
 
-def get_brightness():
-    cur = read_int(bl() / "brightness")
-    mx = read_int(bl() / "max_brightness")
-    return round(cur * 100 / mx)
+def write_int(p: Path, v: int):
+    p.write_text(str(v))
 
-def set_brightness(pct):
+def get_brightness_percent() -> int:
+    bpath = bl_base() / "brightness"
+    mpath = bl_base() / "max_brightness"
+    cur = read_int(bpath)
+    mx = read_int(mpath)
+    if mx <= 0:
+        return 0
+    return max(0, min(100, round(cur * 100 / mx)))
+
+def set_brightness_percent(pct: int):
     pct = max(0, min(100, int(pct)))
-    mx = read_int(bl() / "max_brightness")
-    write_int(bl() / "brightness", round(mx * pct / 100))
+    bpath = bl_base() / "brightness"
+    mpath = bl_base() / "max_brightness"
+    mx = read_int(mpath)
+    raw = round(mx * pct / 100)
+    write_int(bpath, raw)
 
-def publish_state(client):
-    branch = ""
-    sha = ""
+def save_last_nonzero(pct: int):
+    if pct > 0:
+        try:
+            LAST_BRIGHTNESS_FILE.write_text(str(pct))
+        except Exception:
+            pass
 
-    # Only try git if it's really a repo
+def load_last_nonzero(default: int = 40) -> int:
     try:
-        if (Path(REPO_DIR) / ".git").exists():
-            branch = subprocess.check_output(
-                ["git", "-C", REPO_DIR, "rev-parse", "--abbrev-ref", "HEAD"],
-                text=True,
-                stderr=subprocess.DEVNULL
-            ).strip()
-            sha = subprocess.check_output(
-                ["git", "-C", REPO_DIR, "rev-parse", "--short", "HEAD"],
-                text=True,
-                stderr=subprocess.DEVNULL
-            ).strip()
+        v = int(LAST_BRIGHTNESS_FILE.read_text().strip())
+        return max(1, min(100, v))
     except Exception:
-        branch = ""
-        sha = ""
+        return default
 
-    state = {
+
+# -----------------------------
+# Git helpers
+# -----------------------------
+def git_current():
+    """Return (branch, short_sha) or ('', '') if not a repo."""
+    try:
+        if not (Path(REPO_DIR) / ".git").exists():
+            return "", ""
+        branch = subprocess.check_output(
+            ["git", "-C", REPO_DIR, "rev-parse", "--abbrev-ref", "HEAD"],
+            text=True,
+            stderr=subprocess.DEVNULL
+        ).strip()
+        sha = subprocess.check_output(
+            ["git", "-C", REPO_DIR, "rev-parse", "--short", "HEAD"],
+            text=True,
+            stderr=subprocess.DEVNULL
+        ).strip()
+        return branch, sha
+    except Exception:
+        return "", ""
+
+def do_git_pull():
+    """Fast-forward pull only on ALLOWED_BRANCH."""
+    if not (Path(REPO_DIR) / ".git").exists():
+        raise RuntimeError(f"{REPO_DIR} is not a git repo")
+    branch, _ = git_current()
+    if branch != ALLOWED_BRANCH:
+        raise RuntimeError(f"Refusing pull: current branch '{branch}' != allowed '{ALLOWED_BRANCH}'")
+    subprocess.check_call(["git", "-C", REPO_DIR, "fetch", "origin", ALLOWED_BRANCH])
+    subprocess.check_call(["git", "-C", REPO_DIR, "pull", "--ff-only", "origin", ALLOWED_BRANCH])
+
+def restart_service():
+    # Requires sudoers rule if service isn't running as root
+    subprocess.check_call(["sudo", "/bin/systemctl", "restart", SERVICE_NAME])
+
+
+# -----------------------------
+# MQTT helpers
+# -----------------------------
+def publish_state(client: mqtt.Client):
+    branch, sha = git_current()
+    st = {
         "device": DEVICE_ID,
-        "brightness": get_brightness(),
-        "display": "ON" if get_brightness() > 0 else "OFF",
+        "backlight": BACKLIGHT_NAME,
+        "brightness": get_brightness_percent(),
+        "display": "ON" if get_brightness_percent() > 0 else "OFF",
         "git_branch": branch,
         "git_sha": sha,
-        "ts": int(time.time())
+        "ts": int(time.time()),
     }
-    client.publish(STATE_TOPIC, json.dumps(state), retain=True)
+    client.publish(STATE_TOPIC, json.dumps(st), retain=True)
+
+def publish_error(client: mqtt.Client, err: str):
+    payload = {"device": DEVICE_ID, "error": err, "ts": int(time.time())}
+    client.publish(ERROR_TOPIC, json.dumps(payload), retain=False)
 
 def on_connect(client, userdata, flags, reason_code, properties=None):
-    print(f"MQTT connected rc={reason_code}, subscribing...")
+    # reason_code == 0 means success
     client.subscribe([
         (CMD_BRIGHTNESS, 0),
         (CMD_DISPLAY, 0),
         (CMD_UPDATE, 0),
+        (CMD_VERSION, 0),
     ])
     publish_state(client)
 
-def on_message(client, _, msg):
+def on_message(client, userdata, msg):
+    topic = msg.topic
+    payload = (msg.payload or b"").decode("utf-8", "ignore").strip()
+
     try:
-        payload = msg.payload.decode().strip()
+        if topic == CMD_BRIGHTNESS:
+            pct = int(float(payload))
+            save_last_nonzero(pct)
+            set_brightness_percent(pct)
+            publish_state(client)
 
-        if msg.topic == CMD_BRIGHTNESS:
-            set_brightness(payload)
+        elif topic == CMD_DISPLAY:
+            p = payload.upper()
+            if p == "OFF":
+                cur = get_brightness_percent()
+                save_last_nonzero(cur)
+                set_brightness_percent(0)
+            elif p == "ON":
+                set_brightness_percent(load_last_nonzero())
+            else:
+                raise ValueError("display payload must be ON or OFF")
+            publish_state(client)
 
-        elif msg.topic == CMD_DISPLAY:
-            if payload.upper() == "OFF":
-                set_brightness(0)
-            elif payload.upper() == "ON":
-                set_brightness(40)
+        elif topic == CMD_VERSION:
+            publish_state(client)
 
-        elif msg.topic == CMD_UPDATE:
-            subprocess.check_call(
-                ["git", "-C", REPO_DIR, "pull", "--ff-only", "origin", ALLOWED_BRANCH]
-            )
-            subprocess.check_call(
-                ["sudo", "/bin/systemctl", "restart", SERVICE_NAME]
-            )
-
-        publish_state(client)
+        elif topic == CMD_UPDATE:
+            if payload.lower() in ("pull", "update", "1", "true", ""):
+                do_git_pull()
+                restart_service()
 
     except Exception as e:
-        client.publish(ERROR_TOPIC, str(e))
+        publish_error(client, str(e))
+
 
 def main():
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    if not bl_base().exists():
+        raise RuntimeError(f"Backlight device not found: {bl_base()}")
+
+    client = mqtt.Client()
     if MQTT_USER:
         client.username_pw_set(MQTT_USER, MQTT_PASS)
+
     client.on_connect = on_connect
     client.on_message = on_message
-    print(f"Connecting to MQTT {MQTT_HOST}:{MQTT_PORT} as {MQTT_USER or '(no user)'} prefix={TOPIC_PREFIX}")
+
     client.connect(MQTT_HOST, MQTT_PORT, 60)
     client.loop_forever()
+
 
 if __name__ == "__main__":
     main()
