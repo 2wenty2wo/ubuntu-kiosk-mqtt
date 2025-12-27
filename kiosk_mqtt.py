@@ -196,12 +196,44 @@ def on_message(client, userdata, msg):
             publish_state(client)
 
         elif topic == CMD_DISPLAY:
-            p = payload.upper()
-            if p == "OFF":
+            parsed = None
+            parse_error = None
+            try:
+                parsed = json.loads(payload) if payload else None
+            except json.JSONDecodeError as exc:
+                parse_error = exc
+
+            if parse_error and payload.lstrip().startswith(("{", "[")):
+                raise ValueError(f"failed to parse display JSON payload: {parse_error.msg}")
+
+            if isinstance(parsed, dict):
+                if "state" not in parsed:
+                    raise ValueError("display JSON payload must include 'state'")
+                value = parsed["state"]
+            elif parsed is not None:
+                value = parsed
+            else:
+                value = payload
+
+            if isinstance(value, bool):
+                state = "ON" if value else "OFF"
+            elif isinstance(value, (int, float)):
+                if value in (0, 1):
+                    state = "ON" if value == 1 else "OFF"
+                else:
+                    raise ValueError("display numeric payload must be 1 or 0")
+            else:
+                state = str(value).strip().upper()
+                if state in ("TRUE", "1"):
+                    state = "ON"
+                elif state in ("FALSE", "0"):
+                    state = "OFF"
+
+            if state == "OFF":
                 cur = get_brightness_percent()
                 save_last_nonzero(cur)
                 set_brightness_percent(0)
-            elif p == "ON":
+            elif state == "ON":
                 set_brightness_percent(load_last_nonzero())
             else:
                 raise ValueError("display payload must be ON or OFF")
