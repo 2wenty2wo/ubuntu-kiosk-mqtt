@@ -16,7 +16,7 @@ Control an Ubuntu kiosk display backlight and updates over MQTT.
    ```bash
    sudo mkdir -p /opt/kiosk-mqtt
    sudo chown "$USER":"$USER" /opt/kiosk-mqtt
-   git clone <repo-url> /opt/kiosk-mqtt
+   git clone https://github.com/2wenty2wo/ubuntu-kiosk-mqtt /opt/kiosk-mqtt
    ```
 
 2. **Install Python dependency**:
