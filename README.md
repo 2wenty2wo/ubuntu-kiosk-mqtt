@@ -50,6 +50,14 @@ Control an Ubuntu kiosk display backlight and updates over MQTT.
    sudo systemctl status kiosk-mqtt.service
    ```
 
+## Service control
+
+```bash
+sudo systemctl start kiosk-mqtt.service
+sudo systemctl stop kiosk-mqtt.service
+sudo systemctl restart kiosk-mqtt.service
+```
+
 ## Configuration
 
 All configuration is via environment variables (set in the systemd unit):
