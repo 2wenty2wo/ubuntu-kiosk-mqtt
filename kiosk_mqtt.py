@@ -287,7 +287,10 @@ def main():
             f"Backlight device missing required files at {base}: {', '.join(missing)}"
         )
 
-    client = mqtt.Client()
+    if hasattr(mqtt, "CallbackAPIVersion"):
+        client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
+    else:
+        client = mqtt.Client()
     if MQTT_USER:
         client.username_pw_set(MQTT_USER, MQTT_PASS)
 
