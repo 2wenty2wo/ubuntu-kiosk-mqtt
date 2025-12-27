@@ -155,6 +155,7 @@ def on_connect(client, userdata, flags, reason_code, properties=None):
             MQTT_PORT,
             reason_code,
         )
+        return
     client.subscribe([
         (CMD_BRIGHTNESS, 0),
         (CMD_DISPLAY, 0),
