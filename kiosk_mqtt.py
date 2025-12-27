@@ -3,6 +3,7 @@ import os
 import json
 import time
 import subprocess
+import logging
 from pathlib import Path
 import paho.mqtt.client as mqtt
 
@@ -145,6 +146,15 @@ def publish_error(client: mqtt.Client, err: str):
 
 def on_connect(client, userdata, flags, reason_code, properties=None):
     # reason_code == 0 means success
+    if reason_code == 0:
+        logging.info("MQTT connected to %s:%s", MQTT_HOST, MQTT_PORT)
+    else:
+        logging.warning(
+            "MQTT connection failed to %s:%s with reason code %s",
+            MQTT_HOST,
+            MQTT_PORT,
+            reason_code,
+        )
     client.subscribe([
         (CMD_BRIGHTNESS, 0),
         (CMD_DISPLAY, 0),
@@ -159,6 +169,7 @@ def on_message(client, userdata, msg):
 
     try:
         if topic == CMD_BRIGHTNESS:
+            logging.info("Handling brightness command on %s", topic)
             pct = None
             state = None
             parsed = None
@@ -196,6 +207,7 @@ def on_message(client, userdata, msg):
             publish_state(client)
 
         elif topic == CMD_DISPLAY:
+            logging.info("Handling display command on %s", topic)
             parsed = None
             parse_error = None
             try:
@@ -240,18 +252,22 @@ def on_message(client, userdata, msg):
             publish_state(client)
 
         elif topic == CMD_VERSION:
+            logging.info("Handling version command on %s", topic)
             publish_state(client)
 
         elif topic == CMD_UPDATE:
+            logging.info("Handling update command on %s", topic)
             if payload.lower() in ("pull", "update", "1", "true", ""):
                 do_git_pull()
                 restart_service()
 
     except Exception as e:
+        logging.exception("Error handling message on %s", topic)
         publish_error(client, str(e))
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
     global BACKLIGHT_NAME
     backlights = available_backlights()
     backlight_names = [p.name for p in backlights]
