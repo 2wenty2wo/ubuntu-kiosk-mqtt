@@ -39,6 +39,12 @@ LAST_BRIGHTNESS_FILE = Path("/var/tmp/kiosk_last_brightness.txt")
 # -----------------------------
 # Backlight helpers
 # -----------------------------
+def available_backlights() -> list[Path]:
+    base = Path("/sys/class/backlight")
+    if not base.exists():
+        return []
+    return sorted([p for p in base.iterdir() if p.is_dir()])
+
 def bl_base() -> Path:
     return Path("/sys/class/backlight") / BACKLIGHT_NAME
 
@@ -214,8 +220,24 @@ def on_message(client, userdata, msg):
 
 
 def main():
-    if not bl_base().exists():
-        raise RuntimeError(f"Backlight device not found: {bl_base()}")
+    global BACKLIGHT_NAME
+    backlights = available_backlights()
+    backlight_names = [p.name for p in backlights]
+    if BACKLIGHT_NAME not in backlight_names:
+        if len(backlight_names) == 1:
+            BACKLIGHT_NAME = backlight_names[0]
+        else:
+            detected = ", ".join(backlight_names) if backlight_names else "(none)"
+            raise RuntimeError(
+                f"Backlight device not found: {BACKLIGHT_NAME}. Detected: {detected}"
+            )
+
+    base = bl_base()
+    missing = [name for name in ("brightness", "max_brightness") if not (base / name).exists()]
+    if missing:
+        raise RuntimeError(
+            f"Backlight device missing required files at {base}: {', '.join(missing)}"
+        )
 
     client = mqtt.Client()
     if MQTT_USER:
