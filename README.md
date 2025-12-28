@@ -169,7 +169,7 @@ Published and subscribed topic names and payload expectations.
 
 Published:
 
-- `<TOPIC_PREFIX>/state` (JSON with device, brightness, display, git info)
+- `<TOPIC_PREFIX>/state` (JSON with device, backlight, brightness, display, optional git/version info, hostname, uptime)
 - `<TOPIC_PREFIX>/error` (JSON error messages)
 - `<TOPIC_PREFIX>/update` (JSON update status with `status`, `step`, `git_before`, `git_after`, and timestamps)
 

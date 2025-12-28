@@ -4,6 +4,7 @@ import json
 import time
 import subprocess
 import logging
+import socket
 from typing import Optional
 from pathlib import Path
 import paho.mqtt.client as mqtt
@@ -37,6 +38,9 @@ CMD_VERSION = f"{TOPIC_PREFIX}/cmd/version"         # anything -> publish state
 
 # Last non-zero brightness for wake
 LAST_BRIGHTNESS_FILE = Path("/var/tmp/kiosk_last_brightness.txt")
+START_TIME = time.monotonic()
+CACHED_BRIGHTNESS: Optional[int] = None
+CACHED_DISPLAY: Optional[str] = None
 
 
 # -----------------------------
@@ -111,6 +115,20 @@ def git_current():
     except Exception:
         return "", ""
 
+def git_tag():
+    """Return latest git tag or ''."""
+    try:
+        if not (Path(REPO_DIR) / ".git").exists():
+            return ""
+        tag = subprocess.check_output(
+            ["git", "-C", REPO_DIR, "describe", "--tags", "--abbrev=0"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        return tag
+    except Exception:
+        return ""
+
 def do_git_pull():
     """Fast-forward pull only on ALLOWED_BRANCH."""
     if not (Path(REPO_DIR) / ".git").exists():
@@ -129,18 +147,48 @@ def restart_service():
 # -----------------------------
 # MQTT helpers
 # -----------------------------
-def publish_state(client: mqtt.Client):
+def publish_state(client: mqtt.Client, reason: Optional[str] = None):
+    global CACHED_BRIGHTNESS
+    global CACHED_DISPLAY
+    brightness = CACHED_BRIGHTNESS
+    display = CACHED_DISPLAY
+    if brightness is None:
+        try:
+            brightness = get_brightness_percent()
+            CACHED_BRIGHTNESS = brightness
+        except Exception:
+            brightness = 0
+            CACHED_BRIGHTNESS = brightness
+    if display is None:
+        display = "ON" if brightness > 0 else "OFF"
+        CACHED_DISPLAY = display
     branch, sha = git_current()
+    tag = git_tag()
+    version = tag or None
+    uptime_s = int(time.monotonic() - START_TIME)
     st = {
         "device": DEVICE_ID,
         "backlight": BACKLIGHT_NAME,
-        "brightness": get_brightness_percent(),
-        "display": "ON" if get_brightness_percent() > 0 else "OFF",
-        "git_branch": branch,
-        "git_sha": sha,
-        "ts": int(time.time()),
+        "brightness": brightness,
+        "display": display,
     }
-    client.publish(STATE_TOPIC, json.dumps(st), retain=True)
+    optional = {
+        "version": version,
+        "git_branch": branch or None,
+        "git_commit": sha or None,
+        "git_tag": tag or None,
+        "hostname": socket.gethostname(),
+        "uptime_s": uptime_s,
+    }
+    for key, value in optional.items():
+        if value is not None:
+            st[key] = value
+    payload = json.dumps(st)
+    if reason:
+        logging.info("Publishing state (%s): %s", reason, payload)
+    else:
+        logging.info("Publishing state: %s", payload)
+    client.publish(STATE_TOPIC, payload, retain=True)
 
 def publish_error(client: mqtt.Client, err: str):
     payload = {"device": DEVICE_ID, "error": err, "ts": int(time.time())}
@@ -188,7 +236,7 @@ def on_connect(client, userdata, flags, reason_code, properties=None):
         (CMD_UPDATE, 0),
         (CMD_VERSION, 0),
     ])
-    publish_state(client)
+    publish_state(client, reason="connect")
 
 def on_message(client, userdata, msg):
     topic = msg.topic
@@ -223,6 +271,8 @@ def on_message(client, userdata, msg):
                 cur = get_brightness_percent()
                 save_last_nonzero(cur)
                 set_brightness_percent(0)
+                CACHED_BRIGHTNESS = 0
+                CACHED_DISPLAY = "OFF"
             else:
                 if pct is None:
                     if state == "ON":
@@ -231,7 +281,9 @@ def on_message(client, userdata, msg):
                         pct = int(float(payload))
                 save_last_nonzero(pct)
                 set_brightness_percent(pct)
-            publish_state(client)
+                CACHED_BRIGHTNESS = pct
+                CACHED_DISPLAY = "ON" if pct > 0 else "OFF"
+            publish_state(client, reason="brightness")
 
         elif topic == CMD_DISPLAY:
             logging.info("Handling display command on %s", topic)
@@ -272,15 +324,20 @@ def on_message(client, userdata, msg):
                 cur = get_brightness_percent()
                 save_last_nonzero(cur)
                 set_brightness_percent(0)
+                CACHED_BRIGHTNESS = 0
+                CACHED_DISPLAY = "OFF"
             elif state == "ON":
-                set_brightness_percent(load_last_nonzero())
+                brightness = load_last_nonzero()
+                set_brightness_percent(brightness)
+                CACHED_BRIGHTNESS = brightness
+                CACHED_DISPLAY = "ON"
             else:
                 raise ValueError("display payload must be ON or OFF")
-            publish_state(client)
+            publish_state(client, reason="display")
 
         elif topic == CMD_VERSION:
             logging.info("Handling version command on %s", topic)
-            publish_state(client)
+            publish_state(client, reason="version")
 
         elif topic == CMD_UPDATE:
             logging.info("Handling update command on %s", topic)
