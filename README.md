@@ -5,6 +5,13 @@
 Remote-control Ubuntu kiosk screens with MQTT, including backlight brightness, display power, and update triggers.
 Designed for simple, headless management of kiosk devices from a central broker.
 
+```mermaid
+flowchart LR
+    Broker[MQTT Broker] --> Service[Kiosk MQTT Service]
+    Service --> Backlight[Backlight sysfs]
+    Service --> Update[Git update]
+```
+
 ## Table of Contents
 
 - [Installation](#installation)
