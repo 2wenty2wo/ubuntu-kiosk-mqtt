@@ -5,6 +5,15 @@
 Remote-control Ubuntu kiosk screens with MQTT, including backlight brightness, display power, and update triggers.
 Designed for simple, headless management of kiosk devices from a central broker.
 
+## Table of Contents
+
+- [Install](#install)
+- [Configuration](#configuration)
+- [Quick Start](#quick-start)
+- [MQTT Topics](#mqtt-topics)
+- [Troubleshooting](#troubleshooting)
+- [Security](#security)
+
 ## Requirements
 
 - Ubuntu with `python3` available
@@ -46,6 +55,20 @@ Designed for simple, headless management of kiosk devices from a central broker.
 
    ```bash
    sudo systemctl status kiosk-mqtt.service
+   ```
+
+## Quick Start
+
+1. Ensure the service is running:
+
+   ```bash
+   sudo systemctl status kiosk-mqtt.service
+   ```
+
+2. Publish a brightness change to confirm connectivity:
+
+   ```bash
+   mosquitto_pub -h "$MQTT_HOST" -t "kiosk/<DEVICE_ID>/cmd/brightness" -m "50"
    ```
 
 ## Service control
@@ -105,3 +128,20 @@ Subscribed:
 - `<TOPIC_PREFIX>/cmd/display` (`ON`/`OFF`)
 - `<TOPIC_PREFIX>/cmd/update` (`pull`, `update`, `1`, `true`)
 - `<TOPIC_PREFIX>/cmd/version` (any payload publishes state)
+
+## Troubleshooting
+
+- **No MQTT messages?** Confirm the broker hostname, credentials, and topic prefix in
+  `systemd/kiosk-mqtt.service`, then restart the service.
+- **Backlight errors?** Double-check `BACKLIGHT_NAME` matches the directory under
+  `/sys/class/backlight`.
+- **Service not starting?** Review logs with:
+
+  ```bash
+  sudo journalctl -u kiosk-mqtt.service -n 100 --no-pager
+  ```
+
+## Security
+
+- Keep MQTT credentials in a systemd drop-in or other secret store rather than the repo.
+- Use broker authentication and TLS if possible, especially on shared networks.
