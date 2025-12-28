@@ -7,23 +7,30 @@ Designed for simple, headless management of kiosk devices from a central broker.
 
 ## Table of Contents
 
-- [Install](#install)
+- [Installation](#installation)
 - [Configuration](#configuration)
 - [Quick Start](#quick-start)
 - [MQTT Topics](#mqtt-topics)
+- [Systemd Service](#systemd-service)
 - [Troubleshooting](#troubleshooting)
 - [Security](#security)
 
 ## Requirements
+
+Prerequisites to run and manage the kiosk service.
 
 - Ubuntu with `python3` available
 - MQTT broker reachable from the device
 - Backlight sysfs support (e.g. `/sys/class/backlight/...`)
 - Python dependency: `paho-mqtt`
 
-## Install
+## Installation
+
+Set up the repo, dependencies, and service files on the kiosk host.
 
 1. **Clone the repo to the target path** (the systemd unit assumes `/opt/kiosk-mqtt`):
+
+   Clone the repository:
 
    ```bash
    sudo mkdir -p /opt/kiosk-mqtt
@@ -32,6 +39,8 @@ Designed for simple, headless management of kiosk devices from a central broker.
    ```
 
 2. **Install Python dependency**:
+
+   Install dependencies:
 
    ```bash
    sudo apt update
@@ -45,6 +54,8 @@ Designed for simple, headless management of kiosk devices from a central broker.
 
 4. **Install and enable the service**:
 
+   Enable the service:
+
    ```bash
    sudo cp systemd/kiosk-mqtt.service /etc/systemd/system/kiosk-mqtt.service
    sudo systemctl daemon-reload
@@ -53,13 +64,19 @@ Designed for simple, headless management of kiosk devices from a central broker.
 
 5. **Verify status**:
 
+   Check the service status:
+
    ```bash
    sudo systemctl status kiosk-mqtt.service
    ```
 
 ## Quick Start
 
+Validate connectivity with a minimal publish test.
+
 1. Ensure the service is running:
+
+   Check the service status:
 
    ```bash
    sudo systemctl status kiosk-mqtt.service
@@ -67,11 +84,17 @@ Designed for simple, headless management of kiosk devices from a central broker.
 
 2. Publish a brightness change to confirm connectivity:
 
+   Publish a test brightness command:
+
    ```bash
    mosquitto_pub -h "$MQTT_HOST" -t "kiosk/<DEVICE_ID>/cmd/brightness" -m "50"
    ```
 
-## Service control
+## Systemd Service
+
+Common commands for controlling the kiosk service.
+
+Service control commands:
 
 ```bash
 sudo systemctl start kiosk-mqtt.service
@@ -80,6 +103,8 @@ sudo systemctl restart kiosk-mqtt.service
 ```
 
 ## Configuration
+
+Define runtime settings via environment variables.
 
 All configuration is via environment variables (set in the systemd unit):
 
@@ -91,11 +116,17 @@ All configuration is via environment variables (set in the systemd unit):
 
 ### Systemd drop-in for secrets (recommended)
 
+Store credentials locally without editing tracked files.
+
 To keep MQTT passwords out of the repo and avoid re-entering them after `git pull`,
 use a systemd drop-in override on the kiosk host:
 
+Open a systemd editor:
+
 ```bash
 sudo systemctl edit kiosk-mqtt.service
+Add the override content:
+
 ```
 
 Add the following content:
@@ -107,6 +138,8 @@ Environment=MQTT_PASS=your_password_here
 
 Then reload and restart the service:
 
+Reload and restart:
+
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl restart kiosk-mqtt.service
@@ -116,6 +149,8 @@ This creates `/etc/systemd/system/kiosk-mqtt.service.d/override.conf`, which is
 local to the machine and won’t be overwritten by `git pull`.
 
 ## MQTT Topics
+
+Published and subscribed topic names and payload expectations.
 
 Published:
 
@@ -131,17 +166,23 @@ Subscribed:
 
 ## Troubleshooting
 
+Quick checks for common setup and runtime issues.
+
 - **No MQTT messages?** Confirm the broker hostname, credentials, and topic prefix in
   `systemd/kiosk-mqtt.service`, then restart the service.
 - **Backlight errors?** Double-check `BACKLIGHT_NAME` matches the directory under
   `/sys/class/backlight`.
 - **Service not starting?** Review logs with:
 
+  Review logs:
+
   ```bash
   sudo journalctl -u kiosk-mqtt.service -n 100 --no-pager
   ```
 
 ## Security
+
+Guidelines for protecting credentials and traffic.
 
 - Keep MQTT credentials in a systemd drop-in or other secret store rather than the repo.
 - Use broker authentication and TLS if possible, especially on shared networks.
