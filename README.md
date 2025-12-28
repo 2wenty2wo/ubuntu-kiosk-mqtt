@@ -1,6 +1,9 @@
 # Ubuntu Kiosk MQTT
 
-Control an Ubuntu kiosk display backlight and updates over MQTT.
+![License](https://img.shields.io/github/license/2wenty2wo/ubuntu-kiosk-mqtt) ![Python](https://img.shields.io/badge/python-3.8%2B-blue?logo=python&logoColor=white) ![Last commit](https://img.shields.io/github/last-commit/2wenty2wo/ubuntu-kiosk-mqtt)
+
+Remote-control Ubuntu kiosk screens with MQTT, including backlight brightness, display power, and update triggers.
+Designed for simple, headless management of kiosk devices from a central broker.
 
 ## Requirements
 
