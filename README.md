@@ -171,6 +171,7 @@ Published:
 
 - `<TOPIC_PREFIX>/state` (JSON with device, brightness, display, git info)
 - `<TOPIC_PREFIX>/error` (JSON error messages)
+- `<TOPIC_PREFIX>/update` (JSON update status with `status`, `step`, `git_before`, `git_after`, and timestamps)
 
 Subscribed:
 
@@ -178,6 +179,22 @@ Subscribed:
 - `<TOPIC_PREFIX>/cmd/display` (`ON`/`OFF`)
 - `<TOPIC_PREFIX>/cmd/update` (`pull`, `update`, `1`, `true`)
 - `<TOPIC_PREFIX>/cmd/version` (any payload publishes state)
+
+Update status payloads are retained and include:
+
+```json
+{
+  "device": "ubuntu_kiosk",
+  "status": "starting|success|failed",
+  "step": "pull|restart|complete",
+  "git_before": "abc123",
+  "git_after": "def456",
+  "started_ts": 1712345678,
+  "completed_ts": 1712345689,
+  "ts": 1712345689,
+  "error": "optional failure details"
+}
+```
 
 ## 🧰 Troubleshooting
 

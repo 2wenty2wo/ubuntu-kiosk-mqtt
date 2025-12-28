@@ -4,6 +4,7 @@ import json
 import time
 import subprocess
 import logging
+from typing import Optional
 from pathlib import Path
 import paho.mqtt.client as mqtt
 
@@ -27,6 +28,7 @@ ALLOWED_BRANCH = os.environ.get("ALLOWED_BRANCH", "main")
 # Topics
 STATE_TOPIC = f"{TOPIC_PREFIX}/state"
 ERROR_TOPIC = f"{TOPIC_PREFIX}/error"
+UPDATE_TOPIC = f"{TOPIC_PREFIX}/update"
 
 CMD_BRIGHTNESS = f"{TOPIC_PREFIX}/cmd/brightness"   # "0".."100" or JSON {"brightness": 200} / {"state": "ON"}
 CMD_DISPLAY = f"{TOPIC_PREFIX}/cmd/display"         # "ON" / "OFF"
@@ -144,6 +146,30 @@ def publish_error(client: mqtt.Client, err: str):
     payload = {"device": DEVICE_ID, "error": err, "ts": int(time.time())}
     client.publish(ERROR_TOPIC, json.dumps(payload), retain=False)
 
+def publish_update_status(
+    client: mqtt.Client,
+    status: str,
+    step: str,
+    git_before: Optional[str] = None,
+    git_after: Optional[str] = None,
+    started_ts: Optional[int] = None,
+    completed_ts: Optional[int] = None,
+    error: Optional[str] = None,
+):
+    payload = {
+        "device": DEVICE_ID,
+        "status": status,
+        "step": step,
+        "git_before": git_before,
+        "git_after": git_after,
+        "started_ts": started_ts,
+        "completed_ts": completed_ts,
+        "ts": int(time.time()),
+    }
+    if error:
+        payload["error"] = error
+    client.publish(UPDATE_TOPIC, json.dumps(payload), retain=True)
+
 def on_connect(client, userdata, flags, reason_code, properties=None):
     # reason_code == 0 means success
     if reason_code == 0:
@@ -259,8 +285,63 @@ def on_message(client, userdata, msg):
         elif topic == CMD_UPDATE:
             logging.info("Handling update command on %s", topic)
             if payload.lower() in ("pull", "update", "1", "true", ""):
-                do_git_pull()
-                restart_service()
+                started_ts = int(time.time())
+                _, git_before = git_current()
+                publish_update_status(
+                    client,
+                    status="starting",
+                    step="pull",
+                    git_before=git_before,
+                    started_ts=started_ts,
+                )
+                try:
+                    do_git_pull()
+                except Exception as exc:
+                    error = f"update failed during pull: {exc}"
+                    publish_update_status(
+                        client,
+                        status="failed",
+                        step="pull",
+                        git_before=git_before,
+                        started_ts=started_ts,
+                        completed_ts=int(time.time()),
+                        error=error,
+                    )
+                    raise RuntimeError(error) from exc
+
+                _, git_after = git_current()
+                publish_update_status(
+                    client,
+                    status="starting",
+                    step="restart",
+                    git_before=git_before,
+                    git_after=git_after,
+                    started_ts=started_ts,
+                )
+                publish_update_status(
+                    client,
+                    status="success",
+                    step="restart",
+                    git_before=git_before,
+                    git_after=git_after,
+                    started_ts=started_ts,
+                    completed_ts=int(time.time()),
+                )
+                try:
+                    restart_service()
+                except Exception as exc:
+                    error = f"update failed during restart: {exc}"
+                    publish_update_status(
+                        client,
+                        status="failed",
+                        step="restart",
+                        git_before=git_before,
+                        git_after=git_after,
+                        started_ts=started_ts,
+                        completed_ts=int(time.time()),
+                        error=error,
+                    )
+                    raise RuntimeError(error) from exc
 
     except Exception as e:
         logging.exception("Error handling message on %s", topic)
