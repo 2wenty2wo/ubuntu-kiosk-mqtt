@@ -318,6 +318,15 @@ def on_message(client, userdata, msg):
                     git_after=git_after,
                     started_ts=started_ts,
                 )
+                publish_update_status(
+                    client,
+                    status="success",
+                    step="restart",
+                    git_before=git_before,
+                    git_after=git_after,
+                    started_ts=started_ts,
+                    completed_ts=int(time.time()),
+                )
                 try:
                     restart_service()
                 except Exception as exc:
@@ -333,16 +342,6 @@ def on_message(client, userdata, msg):
                         error=error,
                     )
                     raise RuntimeError(error) from exc
-
-                publish_update_status(
-                    client,
-                    status="success",
-                    step="complete",
-                    git_before=git_before,
-                    git_after=git_after,
-                    started_ts=started_ts,
-                    completed_ts=int(time.time()),
-                )
 
     except Exception as e:
         logging.exception("Error handling message on %s", topic)
