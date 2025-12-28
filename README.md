@@ -1,11 +1,11 @@
-# Ubuntu Kiosk MQTT
+# 🖥️ Ubuntu Kiosk MQTT
 
 ![License](https://img.shields.io/github/license/2wenty2wo/ubuntu-kiosk-mqtt) ![Python](https://img.shields.io/badge/python-3.8%2B-blue?logo=python&logoColor=white) ![Last commit](https://img.shields.io/github/last-commit/2wenty2wo/ubuntu-kiosk-mqtt)
 
 Remote-control Ubuntu kiosk screens with MQTT, including backlight brightness, display power, and update triggers.
 Designed for simple, headless management of kiosk devices from a central broker.
 
-## Feature Highlights
+## ✨ Feature Highlights
 
 - MQTT-driven control for brightness, display power, and status updates.
 - Systemd-managed service for reliable startup and restarts.
@@ -20,7 +20,7 @@ flowchart LR
     Service --> Update[Git update]
 ```
 
-## Table of Contents
+## 🧭 Table of Contents
 
 - [Installation](#installation)
 - [Configuration](#configuration)
@@ -30,7 +30,7 @@ flowchart LR
 - [Troubleshooting](#troubleshooting)
 - [Security](#security)
 
-## Requirements
+## ✅ Requirements
 
 Prerequisites to run and manage the kiosk service.
 
@@ -39,7 +39,7 @@ Prerequisites to run and manage the kiosk service.
 - Backlight sysfs support (e.g. `/sys/class/backlight/...`)
 - Python dependency: `paho-mqtt`
 
-## Installation
+## 📦 Installation
 
 Set up the repo, dependencies, and service files on the kiosk host.
 
@@ -85,7 +85,7 @@ Set up the repo, dependencies, and service files on the kiosk host.
    sudo systemctl status kiosk-mqtt.service
    ```
 
-## Quick Start
+## 🚀 Quick Start
 
 Validate connectivity with a minimal publish test.
 
@@ -105,7 +105,7 @@ Validate connectivity with a minimal publish test.
    mosquitto_pub -h "$MQTT_HOST" -t "kiosk/<DEVICE_ID>/cmd/brightness" -m "50"
    ```
 
-## Systemd Service
+## 🛠️ Systemd Service
 
 Common commands for controlling the kiosk service.
 
@@ -117,7 +117,7 @@ sudo systemctl stop kiosk-mqtt.service
 sudo systemctl restart kiosk-mqtt.service
 ```
 
-## Configuration
+## ⚙️ Configuration
 
 Define runtime settings via environment variables.
 
@@ -129,7 +129,7 @@ All configuration is via environment variables (set in the systemd unit):
 - `BACKLIGHT_NAME` (e.g. `intel_backlight`)
 - `REPO_DIR`, `SERVICE_NAME`, `ALLOWED_BRANCH`
 
-### Systemd drop-in for secrets (recommended)
+### 🔐 Systemd drop-in for secrets (recommended)
 
 Store credentials locally without editing tracked files.
 
@@ -163,7 +163,7 @@ sudo systemctl restart kiosk-mqtt.service
 This creates `/etc/systemd/system/kiosk-mqtt.service.d/override.conf`, which is
 local to the machine and won’t be overwritten by `git pull`.
 
-## MQTT Topics
+## 📡 MQTT Topics
 
 Published and subscribed topic names and payload expectations.
 
@@ -179,7 +179,7 @@ Subscribed:
 - `<TOPIC_PREFIX>/cmd/update` (`pull`, `update`, `1`, `true`)
 - `<TOPIC_PREFIX>/cmd/version` (any payload publishes state)
 
-## Troubleshooting
+## 🧰 Troubleshooting
 
 Quick checks for common setup and runtime issues.
 
@@ -195,7 +195,7 @@ Quick checks for common setup and runtime issues.
   sudo journalctl -u kiosk-mqtt.service -n 100 --no-pager
   ```
 
-## Security
+## 🔒 Security
 
 Guidelines for protecting credentials and traffic.
 
